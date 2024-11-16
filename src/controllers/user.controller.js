@@ -14,7 +14,7 @@ const registerUser = asyncHandler(async (req,res) => {
 
     // 1. get user details from frontend
     const {fullName, email, username, password} = req.body
-    console.log(req.body)
+    // console.log(req.body)
 
     // 2. validation of user details(not empty checks, etc)
     if(
@@ -24,7 +24,7 @@ const registerUser = asyncHandler(async (req,res) => {
     }
 
     // 3. check if user already exists: username, email
-    const existedUser = User.findOne({
+    const existedUser = await User.findOne({
         $or:[{ username }, { email }]  // if any of these field is already present
     })
     if(existedUser){
@@ -33,7 +33,11 @@ const registerUser = asyncHandler(async (req,res) => {
 
     // 4. check if we have files(images,avatar) specifically for avatar(avatar is compulsory)
     const avatarLocalPath = req.files?.avatar[0]?.path // req.files give us access to middlewares
-    const coverImageLocalPath = req.files?.coverImage[0]?.path
+    // const coverImageLocalPath = req.files?.coverImage[0]?.path
+    let coverImageLocalPath
+    if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0){
+        coverImageLocalPath = req.files.coverImage[0].path
+    }
 
     if(!avatarLocalPath){
         throw new ApiError(400,"Avatar is required")
@@ -65,7 +69,7 @@ const registerUser = asyncHandler(async (req,res) => {
 
     // 8. check for user creation
     if(!createdUser){
-        throw new ApiError(500,"Something went wrong while registering a user")
+        throw new ApiError(500,"Something went wrong while registering the user")
     }
 
     // 9. return response(or handle error)
