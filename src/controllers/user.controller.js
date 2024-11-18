@@ -8,8 +8,23 @@ import { ApiResponse } from "../utils/ApiResponse.js"
 import { User } from "../models/user.model.js" // if export default was used you could have simple imported user without {}
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 
+// this is a function to generate access token and refresh token using the user id
+const generateAccessAndRefreshToken = async (userId) => {
+    try {
+        const user = await User.findById(userId)
+        const accessToken = await user.generateAccessToken() // to be given to the user
+        const refreshToken = await user.generateRefreshToken() // to be stored in the database
 
-// following has an order of validation and then database operations
+        user.refreshToken = refreshToken // storing the value in user document
+        await user.save({ validateBeforeSave: false }) // storing the refresh token in the database without validation(mongoose model kicks in, and we need to avoid that)
+        return { accessToken, refreshToken }
+
+    } catch (error) {
+        throw new ApiError(500,"Something went wrong while generating tokens")
+    }
+}
+
+// following has an order of validation and then database operations for user registration
 const registerUser = asyncHandler(async (req,res) => {
 
     // 1. get user details from frontend
@@ -78,5 +93,90 @@ const registerUser = asyncHandler(async (req,res) => {
     )
 })
 
+// following is an order of validation and then database operations for user login
+const loginUser = asyncHandler(async (req,res) => {
+    
+    // 1. Get user details from frontend
+    const { email, username, password } = req.body
 
-export { registerUser }
+    // 2. username or email
+    if(!username && !email){
+        throw new ApiError(400,"Username or email is required")
+    }
+    const user = await User.findOne({
+        $or:[{ username }, { email }]
+    })
+
+    // 3. find if the user exists(handle error if the user doesn't exist)
+    if(!user){
+        throw new ApiError(404,"User does not exist")
+    }
+    // 4. get the password and compare it with the password in db(compare it with the encrypted password in db, and handle error if password doesn't match)
+    const isPasswordValid = await user.isPasswordCorrect(password)// remember that "User" is a mongoose object, so all the builtin mongoose methods like findOne, updateOne, etc can be used
+                                                                  // but user is an instance of the User model, so all the custom methods can be used using "user" object followed by a dot
+    if(!isPasswordValid){
+        throw new ApiError(401,"Password is incorrect")
+    }
+    // 5. generate access token and refresh token(thses to processes are so common and frequent that we will use a function for it, declared above)
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id)
+
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken") // getting logged in user details without password and refresh token
+    
+    // 6. send tokens in form of secure cookies
+    const options = {
+        httpOnly: true, // meaning that the cookie will only be accessible from the server, not from the client(browser)
+        secure: true
+    }
+
+    // 7. return response
+    return res
+    .status(200)
+    .cookie("accessToken",accessToken,options) // cookie is coming from cookie-parser("name of the token", variable, options)
+    .cookie("refreshToken",refreshToken,options)
+    .json(
+        new ApiResponse(200,
+            {
+                user: loggedInUser,
+                accessToken,
+                refreshToken
+            },
+            "User logged in successfully"
+        )
+    )
+
+})
+
+// following is an order of validation and then database operations for user logout
+const logoutUser = asyncHandler( async (req,res) => { 
+    // basically clearing the cookies, and resetting the refresh token in db
+    // so for that we need to have access of the user's id in the request object(which is not there)
+    // so we take help of a middleware which is "verifyJWT" in auth.middleware.js
+    // & all these were done to get user id
+    await User.findByIdAndUpdate( 
+        req.user._id, // ^ this user is coming from the middleware "verifyJWT" in auth.middleware.js
+        {
+            $set: {
+                refreshToken: undefined
+            }
+        }, 
+        {
+            new: true // this will return the updated document(not the old one, where refresh token was still there)
+        }
+    ) // refresh token is cleared in db 
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken",options) // clearCookie is coming from cookie-parser
+    .clearCookie("refreshToken",options)
+    .json(
+        new ApiResponse(200, {}, "User logged out")
+    )
+
+})
+
+export { registerUser, loginUser, logoutUser }

@@ -59,6 +59,27 @@ userSchema.methods.isPasswordCorrect = async function(password){
     return await bcrypt.compare(password, this.password)
 }
 
+/*
+Access Tokens and Refresh Tokens in Backend Development
+Access Token:
+
+1. A short-lived token used to authenticate and authorize user actions.
+2. Typically sent with each request (e.g., in the headers) to access a protected resource.
+3. Example: A key card granting access to a room temporarily.
+
+Refresh Token:
+
+1. A longer-lived token used to get a new access token after it expires.
+2. Helps maintain security without requiring the user to log in again.
+3. Example: A membership ID used to get a new key card when the old one stops working.
+Real-Life Scenario
+
+Imagine logging into a streaming service like Netflix:
+
+Access Token: Lets you browse and watch movies. Expires quickly (e.g., after an hour).
+Refresh Token: Quietly fetches a new access token when it expires, so you don’t have to log in again.
+This approach balances security (short-lived access tokens) and usability (auto-refresh with refresh tokens).
+*/
 userSchema.methods.generateAccessToken = function(){
     return jwt.sign(
         {
@@ -73,7 +94,6 @@ userSchema.methods.generateAccessToken = function(){
         }
     )
 }
-
 userSchema.methods.generateRefreshToken = function(){
     return jwt.sign(
         {
