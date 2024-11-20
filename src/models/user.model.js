@@ -51,7 +51,7 @@ const userSchema = new Schema({
 userSchema.pre("save", async function (next) { // we want to hash the password only when user has modified the password field, not in other cases
     if(!this.isModified("password")) return next();
 
-    this.password = await bcrypt.hashSync(this.password, 10)
+    this.password = await bcrypt.hashSync(this.password, 10) // and then hash the password
     next()
 })
 
