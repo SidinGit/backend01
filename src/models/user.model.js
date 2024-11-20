@@ -46,7 +46,7 @@ const userSchema = new Schema({
 
     }
     
-},{timsestamps:true})
+},{timestamps:true})
 
 userSchema.pre("save", async function (next) { // we want to hash the password only when user has modified the password field, not in other cases
     if(!this.isModified("password")) return next();
