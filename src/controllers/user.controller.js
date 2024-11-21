@@ -324,7 +324,7 @@ const updateUserAvatar = asyncHandler( async ( req, res ) => {
     if(!updatedAvatar.url){
         throw new ApiError(500,"Something went wrong while uploading the avatar, please try again")
     }
-
+    // todo: delete old avatar from cloudinary
     //* now update the avatar's url in the db()
     const user = await User.findByIdAndUpdate(
         req.user?._id,
