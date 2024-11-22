@@ -389,6 +389,86 @@ const updateUserCoverImage = asyncHandler( async ( req, res ) => {
     )
 })
 
+//^ following are operations for getting user profile
+const getUserChannelProfile = asyncHandler( async ( req, res ) => {
+    const { username } = req.params //^ why user.params ?? whenever we need the profile of a channel, we go to the channel's url
+                                    //^ params give us the url(here a user is checking the profile of a channel)
+
+    if(!username?.trim()) {
+        throw new ApiError(400,"Username is rmissing")
+    }
+
+    //* now we need to find the document in the db using the username of the channel
+    //* and then we can get subscribers count, etc using mongo db aggregation pipeline(for details watch video 19:understanding the subscription schema)
+
+    const channel = await User.aggregate([
+        {
+            $match:{ //^ find the document from the db with username as username 
+                username: username?.toLowerCase()
+            }
+        },
+        {
+            $lookup: { //^ and then look for subscribers of the channel with the username
+                from: "Subscription",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers" //^ gives us an array of subscribers whose channel name is linked to username's user id
+            }
+        },
+        {
+            $lookup: { //^ and then look for how many channels it(username) has subscribed to
+                from: "Subscription",
+                localField: "_id",
+                foreignField: "subscriber",
+                as: "subscribedTo" //^ gives us an array of channels whose subscriber name is linked to username's user id
+            }
+        },
+        {
+            $addFields:{ //^ and then add these new fields to the document   
+                subscribersCount: { //^ count of subscribers
+                    $size: "$subscribers"
+                },
+                channelsSubscribedToCount: { //^ count of channels subscribed to
+                    $size: "$subscribedTo"
+                },
+                isSubscribed: { //^ checks if the you are subscribed to the channel
+                    $condition: {
+                        if: {$in:[req.user?._id, "$subscribers.subscriber"]}, //^ if your id is present in the subscribers.subscriber array
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        },
+        {
+            $project: { //^ exposes(or projects) only selected fields to the frontend
+                fullName: 1,
+                username: 1,
+                subscribersCount: 1,
+                channelsSubscribedToCount: 1,
+                isSubscribed: 1,
+                avatar: 1,
+                coverImage: 1,
+                email: 1
+            }
+        }
+    ])
+    if(!channel?.length){
+        throw new ApiError(404,"Channel does not exist")
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            channel[0],
+            `${username}'s profile fetched successfully`
+        )
+    )
+
+}) 
+
 export { 
     registerUser, 
     loginUser, 
@@ -398,5 +478,6 @@ export {
     getCurrentUser,
     updateAccountDetails,
     updateUserAvatar,
-    updateUserCoverImage
+    updateUserCoverImage,
+    getUserChannelProfile
 }
