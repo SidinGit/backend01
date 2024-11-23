@@ -7,7 +7,7 @@
     2. for steps //*
     3. for other approaches //!
 */
-
+import mongoose from "mongoose"
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
@@ -162,8 +162,8 @@ const logoutUser = asyncHandler( async (req,res) => {
     await User.findByIdAndUpdate( 
         req.user._id, // ^ this user is coming from the middleware "verifyJWT" in auth.middleware.js
         {
-            $set: {
-                refreshToken: undefined
+            $unset: {
+                refreshToken: 1 //^ this removes the field from the document
             }
         }, 
         {
@@ -409,7 +409,7 @@ const getUserChannelProfile = asyncHandler( async ( req, res ) => {
         },
         {
             $lookup: { //^ and then look for subscribers of the channel with the username
-                from: "Subscription",
+                from: "subscriptions",
                 localField: "_id",
                 foreignField: "channel",
                 as: "subscribers" //^ gives us an array of subscribers whose channel name is linked to username's user id
@@ -417,7 +417,7 @@ const getUserChannelProfile = asyncHandler( async ( req, res ) => {
         },
         {
             $lookup: { //^ and then look for how many channels it(username) has subscribed to
-                from: "Subscription",
+                from: "subscriptions",
                 localField: "_id",
                 foreignField: "subscriber",
                 as: "subscribedTo" //^ gives us an array of channels whose subscriber name is linked to username's user id
@@ -432,7 +432,7 @@ const getUserChannelProfile = asyncHandler( async ( req, res ) => {
                     $size: "$subscribedTo"
                 },
                 isSubscribed: { //^ checks if the you are subscribed to the channel
-                    $condition: {
+                    $cond: {
                         if: {$in:[req.user?._id, "$subscribers.subscriber"]}, //^ if your id is present in the subscribers.subscriber array
                         then: true,
                         else: false
@@ -476,19 +476,19 @@ const getWatchHistory = asyncHandler( async ( req, res ) => {
     const user = await User.aggregate([
         {
             $match:{
-                _id: new mongoose.Types.ObjectId(req.user?._id) //^ check the above comments
+                _id: new mongoose.Types.ObjectId(req.user._id) //^ check the above comments
             }
         },
         {
             $lookup:{
-                from:"Video",
+                from:"videos",
                 localField:"watchHistory",
                 foreignField:"_id",
                 as:"watchHistory",
                 pipeline:[
                     {
                         $lookup:{
-                            from:"User",
+                            from:"users",
                             localField:"owner",
                             foreignField:"_id",
                             as:"owner",
