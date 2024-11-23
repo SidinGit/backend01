@@ -469,6 +469,7 @@ const getUserChannelProfile = asyncHandler( async ( req, res ) => {
 
 }) 
 
+//^ following are operations for getting user watch history
 const getWatchHistory = asyncHandler( async ( req, res ) => {
     //^ req.user._id returns the whole mogno db id string objectId('5hd51f54134d3541f') 
     //^ later when it is used with mongoose model, internally the objectId is removed and the string within it is used
