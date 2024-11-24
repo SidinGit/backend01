@@ -1,5 +1,5 @@
 import mongoose, {Schema} from "mongoose"
-import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2"
+import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2" //^ gives us the ability to paginate our data
 
 const videoSchema = new Schema({
     videoFile:{
@@ -22,7 +22,7 @@ const videoSchema = new Schema({
         type : Number, // cloudinary information
         required : true
     },
-    duration:{
+    views:{
         type : Number,
         default: 0
     },
