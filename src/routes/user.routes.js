@@ -33,7 +33,7 @@ router.route("/register").post(
     ]),
     registerUser
 )// here upload is the middleware defined in multer.middleware.js
-// router.route("/login").post(login) // todo: login is not defined yet inside user.controller.js
+// router.route("/login").post(login)
 
 router.route("/login").post( loginUser )
 

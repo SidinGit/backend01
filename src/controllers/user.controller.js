@@ -7,13 +7,18 @@
     2. for steps //*
     3. for other approaches //!
 */
-import mongoose from "mongoose"
+import mongoose from "mongoose"// ^ mongoose is a database
+
+//* import from utils
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
-import { User } from "../models/user.model.js" //^ if export default was used you could have simple imported user without {}
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
-import jwt from "jsonwebtoken"
+
+//* import from models
+import { User } from "../models/user.model.js" //^ if export default was used you could have simple imported user without {}
+
+import jwt from "jsonwebtoken"//^ for authentications 
 
 //^ this is a function to generate access token and refresh token using the user id
 const generateAccessAndRefreshToken = async (userId) => {
