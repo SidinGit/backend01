@@ -27,12 +27,82 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
 const publishAVideo = asyncHandler(async (req, res) => {
     const { title, description} = req.body
-    // TODO: get video, upload to cloudinary, create video
+
+    //* validation of title and description
+    if(title.trim()===""){
+        throw new ApiError(400, "Title is required")
+    }
+    if(description.trim()===""){
+        throw new ApiError(400, "Description is required")
+    }
+
+    //* check if we have files(video, thumbnail) on public folder, video is compulsory
+    const videoFileLocalPath = req.files?.videoFile[0]?.path
+
+    let thumbnailLocalPath
+    if( req.files && Array.isArray(req.files.thumbnail) && req.files.thumbnail.length > 0){
+        thumbnailLocalPath = req.files.thumbnail[0].path
+    }
+
+    if(!videoFileLocalPath){
+        throw new ApiError(400, "Video is required")
+    }
+
+    //* upload the files on cloudinary, also check if video is uploaded to cloudinary successfully
+    const uploadedVideo = await uploadOnCloudinary(videoFileLocalPath)
+    const uploadedThumbnail = await uploadOnCloudinary(thumbnailLocalPath)
+
+    if(!uploadedVideo){
+        throw new ApiError(400, "could not upload the video to cloud, please try again")
+    }
+
+    //* create the video object
+    const video = await Video.create({
+        videoFile: uploadedVideo.url,
+        thumbnail: uploadedThumbnail.url || "",
+        title,
+        description,
+        duration: uploadedVideo.duration,
+        owner: req.user._id
+    })
+
+    //* check if video object is created on db successfully
+    const createdVideo = await Video.findById(video._id)
+    if(!createdVideo){
+        throw new ApiError(500, "Something went wrong while creating the video, please try again")
+    }
+
+    //* return response
+    return res
+    .status(201)
+    .json(
+        new ApiResponse(
+            201,
+            createdVideo,
+            "Video published successfully"
+        )
+    )
 })
 
 const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params
-    //TODO: get video by id
+
+    if(!isValidObjectId(videoId) || !isValidObjectId(req.user._id)){ //^ check if video id or the user id is valid
+        throw new ApiError(400, "Invalid request")
+    }
+
+    // further processing
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            video,
+            "Video fetched successfully"
+        )
+    )
+
 })
 
 const updateVideo = asyncHandler(async (req, res) => {

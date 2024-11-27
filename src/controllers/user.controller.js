@@ -75,7 +75,7 @@ const registerUser = asyncHandler(async (req,res) => {
     const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
     if(!avatar){
-        throw new ApiError(400,"Avatar is required")
+        throw new ApiError(400,"Something went wrong while uploading the avatar, please try again")
     }
 
     //* 6. create user object for mongodb - create entry in db
