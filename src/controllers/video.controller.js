@@ -13,18 +13,18 @@ import mongoose, { isValidObjectId } from "mongoose" // ^ mongoose is a database
 import { asyncHandler } from "../utils/asyncHandler.js"
 import { ApiError } from "../utils/ApiError.js"
 import { ApiResponse } from "../utils/ApiResponse.js"
-import { uploadOnCloudinary } from "../utils/cloudinary.js"
+import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js"
 
 //* import from models
 import { Video } from "../models/video.model.js" 
 import { User } from "../models/user.model.js"
 
-
+//^ TODO: here we will get all the videos based on query, sort, pagination
 const getAllVideos = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
-    //TODO: get all videos based on query, sort, pagination
 })
 
+//^ here we will publish a video
 const publishAVideo = asyncHandler(async (req, res) => {
     const { title, description} = req.body
 
@@ -84,6 +84,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
     )
 })
 
+//^ TODO: here we will get video by id
 const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params
 
@@ -102,20 +103,122 @@ const getVideoById = asyncHandler(async (req, res) => {
             "Video fetched successfully"
         )
     )
+    //TODO: get video by id
+}) 
 
-})
-
-const updateVideo = asyncHandler(async (req, res) => {
+//^ here we will update video details like title, description
+const updateVideoDetails = asyncHandler(async (req, res) => {
     const { videoId } = req.params
-    //TODO: update video details like title, description, thumbnail
+    const { title, description } = req.body
+    
+    //* check if the object ids are valid
+    if(!isValidObjectId(videoId) || !isValidObjectId(req.user._id)){
+        throw new ApiError(400, "Invalid request")
+    }
 
+    //* check if the user is the owner of the video
+    const videoOwner = await Video.findById(videoId).select("owner")
+    if(videoOwner?.owner.toString() !== req.user._id.toString()){
+        throw new ApiError(401, "Unauthorized request")
+    }
+
+    //* check if the title and description are present
+    if(title.trim()==="" || description.trim()===""){
+        throw new ApiError(400, "Title and description are required")
+    }
+
+    //^ now we have the video id, title, description
+    //* make a call to db and update the required video object fields
+    
+    const video = await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $set:{
+                title: title,
+                description: description,
+            }
+        },
+        {new: true}
+    )
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            video,
+            "Video details updated successfully"
+        )
+    )
 })
 
+//^ here we will update the video thumbnail
+const updateVideoThumbnail = asyncHandler(async (req, res) => {
+    const { videoId } = req.params
+    const thumbnailLocalPath = req.file?.path
+
+    //* check if the object ids are valid
+    if(!isValidObjectId(videoId) || !isValidObjectId(req.user._id)){
+        throw new ApiError(400, "Invalid request")
+    }
+
+    //* check if the owner of the video is the user
+    const videoOwner = await Video.findById(videoId).select("owner")
+    if(videoOwner?.owner.toString() !== req.user._id.toString()){
+        throw new ApiError(401, "Unauthorized request")
+    }
+
+    //* check if the thumbnail is present
+    if(!thumbnailLocalPath){
+        throw new ApiError(400, "Thumbnail is missing")
+    }
+
+    //* upload the thumbnail on cloudinary
+    const updatedThumbnail = await uploadOnCloudinary(thumbnailLocalPath)
+    if(!updatedThumbnail.url){
+        throw new ApiError(500, "Something went wrong while uploading the thumbnail, please try again")
+    }
+
+    //* here we will extract the old thumbnail url from the db
+    const oldThumbnail = await Video.findById(videoId).select("thumbnail")
+    const oldThumbnailUrl = oldThumbnail?.thumbnail.toString()
+    
+
+    //^ now we have the video id and new thumbnail url
+    //* make a call to db and update the required video object fields
+    
+    const video = await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $set:{
+                thumbnail: updatedThumbnail.url
+            }
+        },
+        {new: true}
+    )
+
+    //* delete the old thumbnail from cloudinary
+    if(video && oldThumbnailUrl.trim() !== "" && oldThumbnailUrl.trim() !== updatedThumbnail.url.toString().trim()){
+        await deleteFromCloudinary(oldThumbnailUrl)
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            video,
+            "Video thumbnail updated successfully"
+        )
+    )
+})
+
+//^ TODO: here we will delete a video
 const deleteVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
-    //TODO: delete video
 })
 
+//^ TODO: here we will toggle publish status
 const togglePublishStatus = asyncHandler(async (req, res) => {
     const { videoId } = req.params
 })
@@ -124,7 +227,8 @@ export {
     getAllVideos,
     publishAVideo,
     getVideoById,
-    updateVideo,
+    updateVideoDetails,
+    updateVideoThumbnail,
     deleteVideo,
     togglePublishStatus
 }
