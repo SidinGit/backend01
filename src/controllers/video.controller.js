@@ -181,7 +181,7 @@ const updateVideoThumbnail = asyncHandler(async (req, res) => {
 
     //* here we will extract the old thumbnail url from the db
     const oldThumbnail = await Video.findById(videoId).select("thumbnail")
-    const oldThumbnailUrl = oldThumbnail?.thumbnail.toString()
+    const oldThumbnailUrl = oldThumbnail?.thumbnail.toString().trim()
     
 
     //^ now we have the video id and new thumbnail url
@@ -198,7 +198,7 @@ const updateVideoThumbnail = asyncHandler(async (req, res) => {
     )
 
     //* delete the old thumbnail from cloudinary
-    if(video && oldThumbnailUrl.trim() !== "" && oldThumbnailUrl.trim() !== updatedThumbnail.url.toString().trim()){
+    if(video && (oldThumbnailUrl !== "") && (oldThumbnailUrl !== updatedThumbnail.url.toString().trim())){
         await deleteFromCloudinary(oldThumbnailUrl)
     }
 
