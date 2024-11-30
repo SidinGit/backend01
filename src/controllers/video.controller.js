@@ -18,6 +18,7 @@ import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js
 //* import from models
 import { Video } from "../models/video.model.js" 
 import { User } from "../models/user.model.js"
+// TODO: import like, comment from models
 
 //^ TODO: here we will get all the videos based on query, sort, pagination
 const getAllVideos = asyncHandler(async (req, res) => {
@@ -213,9 +214,58 @@ const updateVideoThumbnail = asyncHandler(async (req, res) => {
     )
 })
 
-//^ TODO: here we will delete a video
+//^ here we will delete a video
 const deleteVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
+
+    //* check if the object ids are valid
+    if(!isValidObjectId(videoId) || !isValidObjectId(req.user._id)){
+        throw new ApiError(400, "Invalid request")
+    }
+
+    //* check if the user is the owner of the video
+    const video = await Video.findById(videoId)
+    if(!video){
+        throw new ApiError(404, "Video not found")
+    }
+
+    if(videoOwner?.owner.toString() !== req.user._id.toString()){
+        throw new ApiError(401, "Unauthorized request")
+    }
+
+    //^now we have to delete the video from cloudinary and the corresponding video object from db
+
+    //* delete the thumbnail and video from cloudinary
+    
+    const thumbnailUrl = video.thumbnail.toString().trim() //^ cloudinary thumbnail url
+    const videoUrl = video.videoFile.toString().trim() //^ cloudinary video url
+
+    if(thumbnailUrl!==""){
+        await deleteFromCloudinary(thumbnailUrl)
+    }
+    if(videoUrl!==""){
+        await deleteFromCloudinary(videoUrl, "video")
+    }
+    console.log("resources deleted from cloudinary")
+
+    //* delete the video, like, comment objects from db
+    const deletedVideo = await Video.findByIdAndDelete(videoId)
+    await Like.deleteMany({video: videoId})
+    await Comment.deleteMany({video: videoId})
+
+    if(!deletedVideo){
+        throw new ApiError(500, "Something went wrong while deleting the video, please try again")
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            deletedVideo,
+            "Video deleted successfully"
+        )
+    )
 })
 
 //^ TODO: here we will toggle publish status

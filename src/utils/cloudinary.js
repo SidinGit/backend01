@@ -4,14 +4,14 @@
 import {v2 as cloudinary} from "cloudinary"
 import fs from "fs"
 
-// Configuration
+//* Configuration
 cloudinary.config({ 
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
     api_key: process.env.CLOUDINARY_API_KEY, 
     api_secret: process.env.CLOUDINARY_API_SECRET 
 });
 
-// Upload an image
+//* Uploading files from public/temp to cloudinary
 const uploadOnCloudinary = async (localFilePath) => {
     try{
         if(!localFilePath) return null
@@ -24,18 +24,42 @@ const uploadOnCloudinary = async (localFilePath) => {
         return uploadResult
     }catch(error){
         fs.unlinkSync(localFilePath) // remove the local temporary file as the upload failed
-        console.log(error)
+        console.log("uploadOnCloudinary error: ",error)
         return null
     }
 }
 
-const deleteFromCloudinary = async (url) => {
-    const publicId = url.split("/").pop().split(".")[0] //^ get the public id from the url
+//* Deleting files from cloudinary
+const deleteFromCloudinary = async (url, resource_type="image") => {
+    const publicId = url.split("/").pop().split(".")[0] //^ extract the public id from the url
+    const resource_extension = url.split("/").pop().split(".")[1].toLowerCase() //^extract the resource extension from the url
+    
+    if (![// Image extensions
+        "jpg",
+        "jpeg",
+        "png",
+        "gif",
+        "webp",
+        
+        // Video extensions
+        "mp4",
+        "mov",
+        "mkv",
+        "webm",
+        "avi"].includes(resource_extension)) {
+        throw new Error(`unsupported extension: ${resource_extension}, try jpg, jpeg, png, gif, webp, mp4, mov, mkv, webm, avi)`);
+    }
+
     try {
-        const deleteResult = await cloudinary.uploader.destroy(publicId)
-    console.log(`File ${publicId} deleted successfully: `,deleteResult)
+        const deleteResult = await cloudinary.uploader.destroy(
+            publicId,
+            {
+                resource_type: resource_type
+            }
+        )
+    console.log(`${resource_type} file '${publicId}' deleted successfully: `,deleteResult)
     } catch (error) {
-        console.log(error)
+        console.log("deleteFromCloudinary error: ",error)
     }
 }
 
