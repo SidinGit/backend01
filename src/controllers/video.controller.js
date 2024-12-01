@@ -85,7 +85,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
     )
 })
 
-//^ TODO: here we will get video by id
+//^ here we will get video by id and return it to frontend
 const getVideoById = asyncHandler(async (req, res) => {
     const { videoId } = req.params
 
@@ -93,18 +93,109 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid request")
     }
 
-    // further processing
+    const userId = req.user._id //^ store the user id, mongo db can not dereference the user id, so we have to do it manually
+
+    //* fetch the video, its likes, comments and other related data from db at once
+    //^ so we use mongo db aggregation pipeline, to gather all the data at once
+    const video = await Video.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(videoId)
+            }
+        },
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "video",
+                as: "likes"
+            }
+        },
+        {
+            $lookup: {
+                from: "comments",
+                localField: "_id",
+                foreignField: "video" ,
+                as: "comments"
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField:"_id",
+                as: "owner",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "subscriptions",
+                            localField: "_id",
+                            foreignField:"channel",
+                            as: "subscribers"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $project: {
+                videoFile: 1,
+                thumbnail: 1,
+                title: 1,
+                description: 1,
+                duration: 1,
+                views: 1,
+                createdAt:1,
+                likesCount: { $size: "$likes" },
+                isLiked: {
+                    $cond: {
+                        if: {
+                            $in: [userId, "$likes.likedBy"]
+                        },
+                        then: true,
+                        else: false
+                    }
+                },
+                commentsCount: { $size: "$comments" },
+                owner: {
+                    fullName: 1,
+                    username: 1,
+                    avatar: 1,
+                    subscribersCount: { $size: "$owner.subscribers" }
+                },
+                isSubscribed:{
+                    $cond: {
+                        if: {
+                            $in: [userId,"$owner.subscribers.subscriber"]
+                        },
+                        then: true,
+                        else: false
+                    }
+                }
+            }
+        }
+    ])
+
+    //* check if video is valid
+    if(!video){
+        throw new ApiError(500, "failed to fetch the video, please try again")
+    }
+
+    //* update the view count of the video
+    await Video.findByIdAndUpdate( videoId, { $inc: { views: 1 } } )
+
+    //* add this video to user's watch history
+    await User.findByIdAndUpdate(userId, { $addToSet: {  watchHistory: videoId } })
 
     return res
     .status(200)
     .json(
         new ApiResponse(
             200,
-            video,
+            video[0],
             "Video fetched successfully"
         )
     )
-    //TODO: get video by id
 }) 
 
 //^ here we will update video details like title, description
