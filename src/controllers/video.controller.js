@@ -18,11 +18,109 @@ import { deleteFromCloudinary, uploadOnCloudinary } from "../utils/cloudinary.js
 //* import from models
 import { Video } from "../models/video.model.js" 
 import { User } from "../models/user.model.js"
-// TODO: import like, comment from models
+import { Like } from "../models/like.model.js"
+import { Comment } from "../models/comment.model.js"
 
-//^ TODO: here we will get all the videos based on query, sort, pagination
+
+//^ here we will get all the videos based on query, sort, pagination
 const getAllVideos = asyncHandler(async (req, res) => {
     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
+
+    //* here we create a mongo db aggregation pipeline
+    const pipeline = [] 
+
+    //* now if query exists we will feed it in the pipeline
+    if(query){
+        pipeline.push(
+            {
+                $search: {
+                    index: "search-videos",
+                    text: {
+                        query: query,
+                        path: ["title", "description"] //^ we will search in title and description
+                    }
+                }
+            }
+        )
+    }
+
+    //* now if userId exists we will feed it in the pipeline
+    if(userId){
+        if( ! isValidObjectId( userId ) ){
+            throw new ApiError(400, "Invalid userId")
+        }
+
+        pipeline.push(
+            {
+                $match: {
+                    owner: new mongoose.Types.ObjectId(userId)
+                }
+            }
+        )
+    }
+
+    //* list only published videos
+    pipeline.push(
+        {
+            $match: {
+                isPublished: true
+            }
+        }
+    )
+
+    //* now if sortBy and sortType exists we will feed it in the pipeline
+    if(sortBy && sortType){
+        pipeline.push(
+            {
+                $sort: { [sortBy] : sortType === "asc" ? 1 : -1 }
+            }
+        )
+    } else {
+        pipeline.push( { $sort: { createdAt: -1 } } )
+    }
+
+    //* here we only project avatar and username from owner field
+    pipeline.push(
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "ownerDetails",
+                pipeline: [
+                    {
+                        $project: {
+                            avatar: 1,
+                            username: 1
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            $unwind: "$ownerDetails"
+        }
+    )
+
+    const videosAggregate = await Video.aggregate(pipeline)
+
+    const options = {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+    }
+
+    const videos = await Video.aggregatePaginate(videosAggregate, options)
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            videos,
+            "Videos fetched successfully"
+        )
+    )
+
 })
 
 //^ here we will publish a video
@@ -359,9 +457,49 @@ const deleteVideo = asyncHandler(async (req, res) => {
     )
 })
 
-//^ TODO: here we will toggle publish status
+//^ here we will toggle publish status
 const togglePublishStatus = asyncHandler(async (req, res) => {
     const { videoId } = req.params
+
+    //* check if the object ids are valid
+    if( !isValidObjectId(videoId) || !isValidObjectId(req.user._id)){
+        throw new ApiError(400, "Invalid request")
+    }
+
+    //* check if the owner is the user
+    const video = await Video.findById(videoId)
+    if(!video){
+        throw new ApiError(404, "Video not found")
+    }
+
+    if(video.owner.toString() !== req.user._id.toString()){
+        throw new ApiError(401, "Unauthorized request")
+    }
+
+    const updatedVideo = await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $set:{
+                isPublished: !video.isPublished
+            }
+        },
+        {new: true}
+    )
+
+    if(!updatedVideo){
+        throw new ApiError(500, "failed to update publish status, please try again")
+    }
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(
+            200,
+            updatedVideo,
+            `publish status set to ${updatedVideo.isPublished}`
+        )
+    )
+
 })
 
 export {
