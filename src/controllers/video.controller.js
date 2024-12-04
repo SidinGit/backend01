@@ -37,26 +37,24 @@ const getAllVideos = asyncHandler(async (req, res) => {
                     index: "search-videos",
                     text: {
                         query: query,
-                        path: ["title", "description"] //^ we will search in title and description
-                    }
-                }
+                        path: ["title", "description"],
+                    },
+                },
             }
         )
     }
 
     //* now if userId exists we will feed it in the pipeline
-    if(userId){
-        if( ! isValidObjectId( userId ) ){
-            throw new ApiError(400, "Invalid userId")
-        }
-
+    if(isValidObjectId(userId)){
         pipeline.push(
             {
                 $match: {
-                    owner: new mongoose.Types.ObjectId(userId)
+                    owner: new mongoose.Types.ObjectId(userId), //^ this is the userId
                 }
             }
         )
+    } else {
+        throw new ApiError(400, "Invalid userId")
     }
 
     //* list only published videos
@@ -99,29 +97,64 @@ const getAllVideos = asyncHandler(async (req, res) => {
         },
         {
             $unwind: "$ownerDetails"
+        },
+        {
+            $project: {
+                owner: 0
+            }
         }
     )
 
-    const videosAggregate = await Video.aggregate(pipeline)
+    const videoAggregate = Video.aggregate(pipeline);
 
     const options = {
         page: parseInt(page, 10),
-        limit: parseInt(limit, 10),
-    }
+        limit: parseInt(limit, 10)
+    };
 
-    const videos = await Video.aggregatePaginate(videosAggregate, options)
+    //* debugging
+    // Explain the pipeline
+    const pipelineExplain = await Video.aggregate(pipeline).explain();
+    console.log("Pipeline Explain: ", pipelineExplain);
+
+    // const video = await Video.aggregatePaginate(videoAggregate, options);
+    
+
+    // return res
+    //     .status(200)
+    //     .json(new ApiResponse(200, video, "Videos fetched successfully"));
+
+    //^ manually implementing pagination
+    //* get total number of videos
+    const totalVideos = await Video.countDocuments();
+    const totalPages = Math.ceil(totalVideos / options.limit);
+    const offset = (options.page - 1) * options.limit;
+
+    const videos = await videoAggregate.skip(offset).limit(options.limit);
+
+    const pagination = {
+        docs: videos,
+        totalDocs: totalVideos,
+        limit: options.limit,
+        page: options.page,
+        pagingCounter: options.page,
+        totalPages: totalPages,
+        hasNextPage: options.page < totalPages,
+        hasPrevPage: options.page > 1,
+        nextPage: options.page < totalPages ? options.page + 1 : null,
+        prevPage: options.page > 1 ? options.page - 1 : null
+    };
 
     return res
     .status(200)
     .json(
         new ApiResponse(
-            200,
-            videos,
+            200, 
+            pagination, 
             "Videos fetched successfully"
-        )
-    )
+        ));
+});
 
-})
 
 //^ here we will publish a video
 const publishAVideo = asyncHandler(async (req, res) => {
@@ -418,7 +451,7 @@ const deleteVideo = asyncHandler(async (req, res) => {
         throw new ApiError(404, "Video not found")
     }
 
-    if(videoOwner?.owner.toString() !== req.user._id.toString()){
+    if(video?.owner.toString() !== req.user._id.toString()){
         throw new ApiError(401, "Unauthorized request")
     }
 

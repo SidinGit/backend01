@@ -23,8 +23,11 @@ app.use(cookieParser()) // accessing the cookies in user's browser from server a
 
 // routes import
 import userRouter from "./routes/user.routes.js"
+import videoRouter from "./routes/video.routes.js"
 
 // routes declaration
 app.use("/api/v1/users", userRouter) // it is a standard practice to prefix all the routes with /api/version_number
+app.use("/api/v1/videos", videoRouter)
+
 
 export {app}

@@ -14,7 +14,7 @@ import {
     publishAVideo, 
     togglePublishStatus, 
     updateVideoDetails, 
-    updateVideoThumbnail } from "../controllers/video.controller"
+    updateVideoThumbnail } from "../controllers/video.controller.js"
 
 const router = Router()
 
@@ -45,3 +45,5 @@ router
 router.route("/updateThumbnail/:videoId").patch(upload.single("thumbnail"), updateVideoThumbnail)
 
 router.route("/togglePublish/:videoId").patch(togglePublishStatus)
+
+export default router

@@ -478,6 +478,7 @@ const getUserChannelProfile = asyncHandler( async ( req, res ) => {
 const getWatchHistory = asyncHandler( async ( req, res ) => {
     //^ req.user._id returns the whole mogno db id string objectId('5hd51f54134d3541f') 
     //^ later when it is used with mongoose model, internally the objectId is removed and the string within it is used
+    console.log(new mongoose.Types.ObjectId(req.user._id))
     const user = await User.aggregate([
         {
             $match:{
